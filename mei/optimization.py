@@ -1,7 +1,7 @@
 """Contains classes and functions related to optimizing an input to a function such that its value is maximized."""
 
 from __future__ import annotations
-from typing import Callable, Tuple
+from typing import Callable, Tuple, Optional, Dict
 import random
 import torch
 from torch import Tensor
@@ -59,6 +59,7 @@ class MEI:
         optimizer: Optimizer,
         transparency,#: False, then normal MEI without transparencytransform: Callable[[Tensor, int], Tensor] = default_transform,
         inhibitory,  # for ring or surround MEI: if False, then excitatory
+        func_config: Optional[Dict] = None,
         transparency_weight: float = 0.0,
         transform: Callable[[Tensor, int], Tensor] = default_transform,
         regularization: Callable[[Tensor, int], Tensor] = default_regularization,
@@ -73,6 +74,7 @@ class MEI:
                 must return a tensor containing a single float.
             initial: A tensor from which the optimization process will start.
             optimizer: A PyTorch-style optimizer class.
+            func_config: a dictionary with kwargs that will get passed to the func. Optional.
             transform: A callable that will receive the current MEI and the index of the current iteration as inputs and
                 that must return a transformed version of the current MEI. Optional.
             regularization: A callable that should have the current mei and the index of the current iteration as
@@ -85,6 +87,7 @@ class MEI:
         """
         initial = self.input_cls(initial)
         self.func = func
+        self.func_config = func_config if func_config is not None else {}
         self.initial = initial.clone()
         self.optimizer = optimizer
         self.transform = transform
@@ -99,7 +102,7 @@ class MEI:
         self.background = background
         self.inhibitory = inhibitory
 
-        print(f"Using a transparency weight of {self.transparency_weight}")
+        # print(f"Using a transparency weight of {self.transparency_weight}")
 
     @property
     def _transformed_input(self) -> Tensor:
@@ -120,9 +123,9 @@ class MEI:
     def evaluate(self) -> Tensor:
         """Evaluates the function on the current MEI."""
         if self.transparency:
-            return self.func(self.transparentize().float())
+            return self.func(self.transparentize().float(), **self.func_config)
         else:
-            return self.func(self._transformed_input)
+            return self.func(self._transformed_input, **self.func_config)
 
     def step(self) -> State:
         """Performs an optimization step."""
@@ -163,7 +166,7 @@ class MEI:
 
     def __repr__(self) -> str:
         return (
-            f"{self.__class__.__qualname__}({self.func}, {self.initial}, {self.optimizer}, "
+            f"{self.__class__.__qualname__}({self.func}, {self.func_config}, {self.initial}, {self.optimizer}, "
             f"transform={self.transform}, regularization={self.regularization}, precondition={self.precondition}, "
             f"postprocessing={self.postprocessing})"
         )
